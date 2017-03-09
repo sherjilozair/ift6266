@@ -12,7 +12,7 @@ def block(x, name, rate=1, n_filters=32, padding='SAME'):
         padding=padding, rate=rate, scope='{}/3x3/1'.format(name))
     h = slim.conv2d(h, n_filters, [3, 3], activation_fn=tf.nn.elu,
         padding=padding, rate=rate, scope='{}/3x3/2'.format(name))
-    h = slim.conv2d(h, n_filters * 2, [1, 1], activation_fn=None
+    h = slim.conv2d(h, n_filters * 2, [1, 1], activation_fn=None,
         scope='{}/1x1/2'.format(name))
     return x + h
 
@@ -80,4 +80,3 @@ for i in xrange(10**6):
 
     #save_path = model.saver.save(model.sess, '/data/lisa/exp/ozairs/mnist_models/')
     #print "Saved in {}".format(save_path)
-
