@@ -13,9 +13,6 @@ The following samples are completions of MNIST digits. As you can see, the feedf
 
 The model consists of 9 residual blocks wtih different dilation factors. Each residual block has 4 resolution-preserving convolutional layers, where the first and last layers use 1x1 filters (NiNs) with linear activation, and the middle layers use 3x3 filters with elu activation. The input to the residual block is added to the output. An extra last layer uses sigmoid activation layers.
 
-|   |   |
-|---|---|
-
 - Train set completions
 
 ![MNIST train set completions](images/ff-cnn-sigmoid-mnist-train.jpg)
