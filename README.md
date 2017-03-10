@@ -9,15 +9,20 @@ I believe in this particular problem, P(inner | outer, caption) is not very mult
 So, it should _technically_ be possible that a vanilla CNN gives good results.
 However, this was not the case.
 
-The following samples are completions of MNIST validation set. As you can see, the feedforward model almost perfectly is able to model the inner square.
+The following samples are completions of MNIST digits. As you can see, the feedforward model almost perfectly is able to model the inner square.
+
+The model consists of 9 residual blocks wtih different dilation factors. Each residual block has 4 resolution-preserving convolutional layers, where the first and last layers use 1x1 filters (NiNs) with linear activation, and the middle layers use 3x3 filters with elu activation. The input to the residual block is added to the output. An extra last layer uses sigmoid activation layers.
+
+|   |   |
+|---|---|
 
 - Train set completions
 
-![MNIST train set completions](images/ff-cnn-mnist-train.jpg)
+![MNIST train set completions](images/ff-cnn-sigmoid-mnist-train.jpg)
 
 - Validation set completions
 
-![MNIST validation set completions](images/ff-cnn-mnist-validation.jpg)
+![MNIST validation set completions](images/ff-cnn-sigmoid-mnist-validation.jpg)
 
 The model is still training, and hopefully should iron out the salt-and-pepper noises as well. The model has only a linear layer at the end, so perhaps using a sigmoid would help with the noise we see.
 

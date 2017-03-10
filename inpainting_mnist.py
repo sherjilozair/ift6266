@@ -3,6 +3,13 @@ import tensorflow as tf
 import tensorflow.contrib.slim as slim
 import imageio
 from tqdm import tqdm
+import sys, os
+assert len(sys.argv) == 2
+expname = sys.argv[1]
+home = '/data/lisa/exp/ozairs/ift6266/{}'.format(expname)
+
+if not os.path.exists(home):
+    os.makedirs(home)
 
 def block(x, name, rate=1, n_filters=32, padding='SAME'):
     h = x
@@ -29,13 +36,14 @@ class Model:
                 h = block(h, i, n_filters=64, rate=rate)
 
         y = slim.conv2d(h, 1, [1, 1], activation_fn=None, scope='last')
-        self.preds = y[:, 7:21, 7:21, :]
+        self.logits = y[:, 7:21, 7:21, :]
+        self.preds = tf.nn.sigmoid(self.logits)
 
         self.outputs = tf.placeholder(tf.float32, [None, 14, 14, 1])
 
-        self.losses = tf.reduce_sum(tf.square(self.outputs - self.preds), axis=[1, 2, 3])
-        self.loss = tf.reduce_mean(self.losses)
-        self.train_op = tf.train.AdamOptimizer(1e-4).minimize(self.loss)
+        self.losses = tf.nn.sigmoid_cross_entropy_with_logits(labels=self.outputs, logits=self.logits)
+        self.loss = tf.reduce_mean(tf.reduce_sum(self.losses, axis=[1, 2, 3]))
+        self.train_op = tf.train.AdamOptimizer().minimize(self.loss)
 
         self.sess.run(tf.global_variables_initializer())
         self.saver = tf.train.Saver()
@@ -70,12 +78,14 @@ for i in xrange(10**6):
 
 
     if i % 1000 == 0:
+        print i, mloss
         preds = model.complete(mnist.train.next_batch(mbsz)[0].reshape(-1, 28, 28, 1))
-        np.save('/data/lisa/exp/ozairs/predictions/mnist_train_completions_{}.npy'.format(i), preds)
+        trainloc = '{}/train_completions_{}.npy'.format(home, i)
+        np.save(trainloc, preds)
         preds = model.complete(mnist.validation.next_batch(mbsz)[0].reshape(-1, 28, 28, 1))
-        np.save('/data/lisa/exp/ozairs/predictions/mnist_valid_completions_{}.npy'.format(i), preds)
-        print 'Saved in /data/lisa/exp/ozairs/predictions/mnist_train_completions_{}.npy'.format(i)
-        print 'Saved in /data/lisa/exp/ozairs/predictions/mnist_valid_completions_{}.npy'.format(i)
+        validloc = '{}/valid_completions_{}.npy'.format(home, i)
+        np.save(validloc, preds)
         save_path = model.saver.save(model.sess, '/data/lisa/exp/ozairs/mnist_models/')
-        print "Saved in {}".format(save_path)
-
+        print trainloc
+        print validloc
+        print save_path

@@ -10,7 +10,7 @@ bigimg = Image.new('L', (28*n, 28*n))
 for i, x in enumerate(mb):
     a = i / n
     b = i % n
-    img = Image.fromarray((x * 255).astype('uint8'))
+    img = Image.fromarray(np.clip((x * 255).astype('uint8'), 0, 255))
     bigimg.paste(img, (a*28, b*28))
 fname2 = fname.replace('.npy', '.jpg')
 bigimg.save(fname2)
