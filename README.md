@@ -11,4 +11,7 @@ However, this was not the case.
 
 The following samples are completions of MNIST validation set. As you can see, the feedforward model almost perfectly is able to model the inner square.
 
+- Train set completions
+![MNIST train set completions](images/ff-cnn-mnist-train.jpg)
+- Validation set completions
 ![MNIST validation set completions](images/ff-cnn-mnist-validation.jpg)
