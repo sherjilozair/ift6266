@@ -9,4 +9,6 @@ I believe in this particular problem, P(inner | outer, caption) is not very mult
 So, it should _technically_ be possible that a vanilla CNN gives good results.
 However, this was not the case.
 
-Samples forthcoming.
+The following samples are completions of MNIST validation set. As you can see, the feedforward model almost perfectly is able to model the inner square.
+
+![MNIST validation set completions](images/ff-cnn-mnist-validation.jpg)
