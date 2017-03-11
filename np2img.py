@@ -5,7 +5,8 @@ import sys
 fname = sys.argv[1]
 mb = np.load(fname).squeeze()
 n = int(np.sqrt(len(mb)))
-mbsz, xdim, ydim, channel = mb.shape
+mbsz, xdim, ydim = mb.shape[:3]
+channel = mb.shape[3] if len(mb.shape) == 4 else 1
 mode = 'RGB' if channel == 3 else 'L'
 bigimg = Image.new(mode, (xdim*n, ydim*n))
 
