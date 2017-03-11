@@ -43,7 +43,7 @@ class Model:
 
         self.losses = tf.nn.sigmoid_cross_entropy_with_logits(labels=self.outputs, logits=self.logits)
         self.loss = tf.reduce_mean(tf.reduce_sum(self.losses, axis=[1, 2, 3]))
-        self.train_op = tf.train.AdamOptimizer().minimize(self.loss)
+        self.train_op = tf.train.AdamOptimizer(1e-4).minimize(self.loss)
 
         self.sess.run(tf.global_variables_initializer())
         self.saver = tf.train.Saver()
