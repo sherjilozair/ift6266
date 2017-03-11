@@ -23,7 +23,7 @@ ii
 
 ![Validation set completions](images/ff-cnn-sigmoid-mnist-validation.jpg)
 
-### MSCOCO
+### MSCOCO (15k updates and going...)
 - Train set completions
 
 ![Train set completions](images/ff-cnn-mscoco-train.jpg)
