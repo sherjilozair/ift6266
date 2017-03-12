@@ -36,70 +36,69 @@ class Model:
     def __init__(self, n_filters=64):
         self.sess = tf.Session()
         self.image = x = tf.placeholder(tf.float32, [None, 64, 64, 3])
-        self.mask = m = tf.placeholder(tf.float32, [None, 64, 64, 3])
-        self.outer = x * (1 - m) # 0s outside, 1s inside
+        m = np.zeros((mbsz, 64, 64, 3))
+        m[:, 16:48, 16:48, :] = 1.
+        self.mask = m
+        self.inputs = x * (1 - m) # 0s outside, 1s inside # no randomness
 
-        with tf.name_scope('generator') as scope:
-            h = slim.conv2d(self.outer, 2*n_filters, [1, 1], activation_fn=None, scope='first')
-
+        with tf.name_scope('gen') as scope:
+            h = slim.conv2d(self.inputs, 2*n_filters, [1, 1], activation_fn=None, scope=scope+'first')
             for i, rate in enumerate([1, 2, 4, 2, 1, 2, 4, 2, 1]):
-                h = block(h, i, n_filters=n_filters, rate=rate)
-
-            y = slim.conv2d(h, 3, [1, 1], activation_fn=tf.nn.sigmoid, scope='last')
+                h = block(h, scope+str(i), n_filters=n_filters, rate=rate)
+            y = slim.conv2d(h, 3, [1, 1], activation_fn=tf.nn.sigmoid, scope=scope+'last')
 
         # add predicted inner to actual outer
-        self.g = h = y * m + self.outer
+        self.g = h = y * m + x * (1 - m)
 
         def discriminator(h):
-            with tf.name_scope('discriminator') as scope:
+            with tf.name_scope('disc') as scope:
                 with slim.arg_scope([slim.conv2d], padding='VALID'):
-                    h = slim.conv2d(h, 48, [3, 3], scope='dconv1')
-                    h = slim.conv2d(h, 48, [3, 3], scope='dconv2')
-                    h = slim.conv2d(h, 48, [3, 3], stride=[2, 2], scope='dconv3')
+                    h = slim.conv2d(h, 48, [3, 3], scope=scope+'dconv1')
+                    h = slim.conv2d(h, 48, [3, 3], scope=scope+'dconv2')
+                    h = slim.conv2d(h, 48, [3, 3], stride=[2, 2], scope=scope+'dconv3')
 
-                    h = slim.conv2d(h, 96, [3, 3], scope='dconv4')
-                    h = slim.conv2d(h, 96, [3, 3], scope='dconv5')
-                    h = slim.conv2d(h, 96, [3, 3], stride=[2, 2], scope='dconv6')
+                    h = slim.conv2d(h, 96, [3, 3], scope=scope+'dconv4')
+                    h = slim.conv2d(h, 96, [3, 3], scope=scope+'dconv5')
+                    h = slim.conv2d(h, 96, [3, 3], stride=[2, 2], scope=scope+'dconv6')
 
-                    h = slim.conv2d(h, 192, [3, 3], scope='dconv7')
-                    h = slim.conv2d(h, 192, [3, 3], scope='dconv8')
-                    h = slim.conv2d(h, 192, [3, 3], stride=[2, 2], scope='dconv9')
+                    h = slim.conv2d(h, 192, [3, 3], scope=scope+'dconv7')
+                    h = slim.conv2d(h, 192, [3, 3], scope=scope+'dconv8')
+                    h = slim.conv2d(h, 192, [3, 3], stride=[2, 2], scope=scope+'dconv9')
 
-                    h = slim.conv2d(h, 192, [3, 3], scope='dconv10')
-                    h = slim.conv2d(h, 48, [1, 1], scope='dconv11')
-                    h = slim.conv2d(h, 1, [1, 1], activation_fn=None, scope='dconv12')
+                    h = slim.conv2d(h, 192, [3, 3], scope=scope+'dconv10')
+                    h = slim.conv2d(h, 48, [1, 1], scope=scope+'dconv11')
+                    h = slim.conv2d(h, 1, [1, 1], activation_fn=None, scope=scope+'dconv12')
                     d = slim.flatten(h)
                     return d
 
         d_x = discriminator(self.image) # real
         d_g = discriminator(self.g) # generated
 
-        l_d_x = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels=tf.ones_like(d_x), logits=d_x))
-        l_d_g = td.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels=tf.ones_like(d_g), logits=d_g))
-        self.dloss = l_d_x - l_d_g
-        self.gloss = l_d_g
-        self.traind_op = tf.train.AdamOptimizer(1e-4).minimize(self.dloss, varlist=slim.get_variables(scope="discriminator"))
-        self.traing_op = tf.train.AdamOptimizer(1e-4).minimize(self.gloss, varlist=slim.get_variables(scope="generator"))
+        # l_d_x = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels=tf.ones_like(d_x), logits=d_x))
+        # l_d_g = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels=tf.ones_like(d_g), logits=d_g))
+
+        self.dloss = tf.reduce_mean(d_g - d_x)
+        self.gloss = tf.reduce_mean(- d_g)
+
+        self.traind_op = tf.train.AdamOptimizer(1e-4).minimize(self.dloss, var_list=slim.get_variables(scope="disc"))
+        self.traing_op = tf.train.AdamOptimizer(1e-4).minimize(self.gloss, var_list=slim.get_variables(scope="gen"))
 
         self.sess.run(tf.global_variables_initializer())
         self.saver = tf.train.Saver()
 
-    def run(self, images, train=True):
-        images = images.copy()
-        images = images / 255.
-        inner = images[:, 16:48, 16:48, :].copy()
-        images[:, 16:48, 16:48, :] = 0.
-        fetch = [self.loss] + ([self.train_op] if train else [])
-        return self.sess.run(fetch, {self.image: images, self.outputs:inner})
+    def rung(self, image, train=True):
+        image = image.copy() / 255.
+        fetch = [self.gloss] + ([self.traing_op] if train else [])
+        return self.sess.run(fetch, {self.image: image})
 
-    def complete(self, images):
-        images = images.copy()
-        images = images / 255.
-        inner = images[:, 16:48, 16:48, :].copy()
-        images[:, 16:48, 16:48, :] = 0.
-        predinner, = self.sess.run([self.preds], {self.image: images})
-        images[:, 16:48, 16:48, :] = predinner
-        return images
+    def rund(self, image, train=True):
+        image = image.copy() / 255.
+        fetch = [self.dloss] + ([self.traind_op] if train else [])
+        return self.sess.run(fetch, {self.image: image})
+
+    def complete(self, image):
+        image = image.copy() / 255.
+        return self.sess.run(self.g, {self.image: image})
 
 
 datahome = '/data/lisa/exp/ozairs/'
@@ -109,23 +108,16 @@ valid = np.load(datahome + 'images.valid.npz').items()[0][1]
 mbsz = 64
 model = Model()
 
-for e in xrange(0):
+for e in xrange(200):
     logging.debug("epoch: {}".format(e))
     idx = np.arange(train.shape[0])
     np.random.shuffle(idx)
     losses = []
     for i in xrange(0, train.shape[0], mbsz):
-        loss, _ = model.run(train[idx[i:i+mbsz]])
-        losses.append(loss)
-        logging.debug("iters: {}/{}, train loss: {}".format(i, train.shape[0], np.mean(losses)))
-
-    idx = np.arange(valid.shape[0])
-    np.random.shuffle(idx)
-    losses = []
-    for i in xrange(0, valid.shape[0], mbsz):
-        loss = model.run(valid[idx[i:i+mbsz]], train=False)
-        losses.append(loss)
-        logging.debug("iters: {}/{}, valid loss: {}".format(i, valid.shape[0], np.mean(losses)))
+        gloss, _ = model.rung(train[idx[i:i+mbsz]])
+        dloss, _ = model.rund(train[idx[i:i+mbsz]])
+        losses.append((dloss, gloss))
+        logging.debug("iters: {}/{}, train loss: {}".format(i, train.shape[0], np.mean(losses, axis=0)))
 
     preds = model.complete(train[idx[:mbsz]])
     np.save('{}/train_completions_{}.npy'.format(home, e), preds)
