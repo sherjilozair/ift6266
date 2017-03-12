@@ -31,7 +31,7 @@ def residual_block(x, name, rate=1, n_filters=128, padding='SAME'):
         scope='{}/1x1/2'.format(name))
     return x + h
 
-def canvas_block(x, n_filters=128, scope):
+def canvas_block(x, n_filters, scope):
     h = slim.conv2d(x, n_filters * 2, [1, 1], activation_fn=None, scope=scope+'first')
     for i, rate in enumerate([1, 2, 4, 2, 1]):
         h = residual_block(h, scope+str(i), n_filters=n_filters, rate=rate)
@@ -46,7 +46,7 @@ class Model:
         self.inputs = h = tf.placeholder(tf.float32, [None, 64, 64, 3])
 
         for i in xrange(5):
-            h = canvas_block(h, n_fitlers=128, 'canvas/{}/'.format(i))
+            h = canvas_block(h, n_filters=128, scope='canvas/{}/'.format(i))
         y = h
 
         self.preds = y[:, 16:48, 16:48, :]
@@ -83,7 +83,7 @@ datahome = '/data/lisa/exp/ozairs/'
 train = np.load(datahome + 'images.train.npz').items()[0][1]
 valid = np.load(datahome + 'images.valid.npz').items()[0][1]
 
-mbsz = 64
+mbsz = 8
 model = Model()
 
 for e in xrange(200):
