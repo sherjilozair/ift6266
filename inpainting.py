@@ -19,7 +19,7 @@ if not os.path.exists(home + '/models/'):
     os.makedirs(home + '/models/')
 
 
-def block(x, name, rate=1, n_filters=32, padding='SAME'):
+def residual_block(x, name, rate=1, n_filters=128, padding='SAME'):
     h = x
     h = slim.conv2d(h, n_filters * 2, [1, 1], activation_fn=None,
         scope='{}/1x1/1'.format(name))
@@ -31,25 +31,28 @@ def block(x, name, rate=1, n_filters=32, padding='SAME'):
         scope='{}/1x1/2'.format(name))
     return x + h
 
+def canvas_block(x, n_filters=128, scope):
+    h = slim.conv2d(x, n_filters * 2, [1, 1], activation_fn=None, scope=scope+'first')
+    for i, rate in enumerate([1, 2, 4, 2, 1]):
+        h = residual_block(h, scope+str(i), n_filters=n_filters, rate=rate)
+    y = slim.conv2d(h, 3, [1, 1], activation_fn=None, scope=scope+'last')
+    return y + x
+
+
 
 class Model:
     def __init__(self):
         self.sess = tf.Session()
-        self.inputs = x = tf.placeholder(tf.float32, [None, 64, 64, 3])
+        self.inputs = h = tf.placeholder(tf.float32, [None, 64, 64, 3])
 
-        h = slim.conv2d(x, 128, [1, 1], activation_fn=None, scope='first')
+        for i in xrange(5):
+            h = canvas_block(h, n_fitlers=128, 'canvas/{}/'.format(i))
+        y = h
 
-        for t in xrange(1):
-            for i, rate in enumerate([1, 2, 4, 2, 1, 2, 4, 2, 1]):
-                h = block(h, i, n_filters=64, rate=rate)
-
-        y = slim.conv2d(h, 3, [1, 1], activation_fn=None, scope='last')
-
-        self.logits = y[:, 16:48, 16:48, :]
-        self.preds = tf.nn.sigmoid(self.logits)
+        self.preds = y[:, 16:48, 16:48, :]
 
         self.outputs = tf.placeholder(tf.float32, [None, 32, 32, 3])
-        self.losses = tf.nn.sigmoid_cross_entropy_with_logits(labels=self.outputs, logits=self.logits)
+        self.losses = 0.5 * tf.square(self.preds - self.outputs)
         self.loss = tf.reduce_mean(tf.reduce_sum(self.losses, axis=[1, 2, 3]))
         self.train_op = tf.train.AdamOptimizer(1e-4).minimize(self.loss)
 
@@ -109,4 +112,3 @@ for e in xrange(200):
 
     save_path = model.saver.save(model.sess, '{}/models/'.format(home))
     #print "Saved in {}".format(save_path)
-
