@@ -49,15 +49,26 @@ class PixelCNN:
         self.logits = nn.conv2d(h, 1, [1, 1], activation_fn=None, scope='conv/logits')
         losses = tf.nn.sigmoid_cross_entropy_with_logits(logits=self.logits, labels=self.image)
         self.loss = tf.reduce_mean(tf.reduce_sum(losses, axis=[1, 2, 3]))
-        self.train_op = tf.train.RMSPropOptimizer(1e-3).minimize(self.loss)
+        self.train_op = tf.train.RMSPropOptimizer(1e-4).minimize(self.loss)
 
-    def train(self, data, mbsz=64):
+    def train(self, data, mbsz=64, nb_epochs=500):
         sess = tf.Session()
         sess.run(tf.global_variables_initializer())
-        for _ in xrange(10**6):
-            image = mnist.train.next_batch(mbsz)[0]
-            _, l = sess.run([self.train_op, self.loss], {self.image: image})
-            print l
+        for e in xrange(nb_epochs):
+            train_losses = []
+            for i in xrange(1000):
+                image = mnist.train.next_batch(mbsz)[0]
+                _, l = sess.run([self.train_op, self.loss], {self.image: image})
+                print 'training', l, '\r'
+                train_losses.append(l)
+
+            validation_losses = []
+            for j in xrange(100):
+                image = mnist.validation.next_batch(mbsz)[0]
+                l, = sess.run([self.loss], {self.image: image})
+                print 'validating', l, '\r'
+                validation_losses.append(l)
+            print "epoch: {}/{}, train loss: {}, validation loss: {}".format(e, nb_epochs, np.mean(train_losses), np.mean(validation_losses))
 
 
 
