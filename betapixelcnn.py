@@ -34,6 +34,26 @@ class nn:
 
         return h
 
+    @staticmethod
+    def fix(x):
+        x = x * (1 - 2 * np.finfo(np.float32).eps)
+        x = x +  np.finfo(np.float32).eps
+        return x
+
+    @staticmethod
+    def beta_logpdf(x, alpha_beta):
+        x = nn.fix(x)
+        alpha_beta = nn.fix(alpha_beta)
+        alpha = alpha_beta[..., 0][..., None]
+        beta = alpha_beta[..., 1][..., None]
+        # negative LL
+        logpdf = 0.
+        logpdf += (alpha - 1) * tf.log(x)
+        logpdf += (beta - 1) * tf.log(1 - x)
+        logpdf += tf.lgamma(alpha + beta)
+        logpdf -= tf.lgamma(alpha)
+        logpdf -= tf.lgamma(beta)
+        return - logpdf
 
 class PixelCNN:
     def __init__(self):
@@ -47,10 +67,9 @@ class PixelCNN:
             h = ih + h
         h = nn.conv2d(h, 32, [1, 1], scope='conv/relu/1x1/1')
         h = nn.conv2d(h, 32, [1, 1], scope='conv/relu/1x1/2')
-        self.logits = nn.conv2d(h, 1, [1, 1], activation_fn=None, scope='conv/logits')
-        self.means = tf.nn.sigmoid(self.logits)
-        self.losses = tf.nn.sigmoid_cross_entropy_with_logits(logits=self.logits, labels=self.image)
-        self.loss = tf.reduce_mean(tf.reduce_sum(self.losses, axis=[1, 2, 3]))
+        self.alpha_beta = nn.conv2d(h, 2, [1, 1], activation_fn=tf.nn.softplus, scope='conv/logits')
+        self.losses = nn.beta_logpdf(self.image, self.alpha_beta)
+        self.loss = tf.reduce_mean(self.losses)
         self.train_op = tf.train.AdamOptimizer().minimize(self.loss)
         self.sess = tf.Session()
         self.sess.run(tf.global_variables_initializer())
@@ -66,16 +85,14 @@ class PixelCNN:
         for e in xrange(nb_epochs):
             train_losses = []
             for i in xrange(1000):
-                mean = mnist.train.next_batch(mbsz)[0]
-                image = np.cast[np.float32](np.random.random(mean.shape) < mean)
+                image = mnist.train.next_batch(mbsz)[0]
                 _, l = self.sess.run([self.train_op, self.loss], {self.image: image})
                 train_losses.append(l)
                 print 'training...', i, np.mean(train_losses), '\r',
 
             validation_losses = []
             for j in xrange(100):
-                mean = mnist.validation.next_batch(mbsz)[0]
-                image = np.cast[np.float32](np.random.random(mean.shape) < mean)
+                image = mnist.validation.next_batch(mbsz)[0]
                 l, = self.sess.run([self.loss], {self.image: image})
                 validation_losses.append(l)
                 print 'validating...', j, np.mean(validation_losses), '\r',
@@ -85,18 +102,16 @@ class PixelCNN:
 
 
     def sample(self, name, n=8):
-        means = np.zeros((n*n, 28, 28, 1))
-        image = np.zeros((n*n, 28, 28, 1))
+        image = np.zeros((n*n, 28, 28))
         for i in xrange(28):
             for j in xrange(28):
-                pixelmean, = self.sess.run([self.means[:, i, j, :]], {self.image: image})
-                means[:, i, j, :] = pixelmean
-                image[:, i, j, :] = np.cast[np.float32](np.random.random(pixelmean.shape) < pixelmean)
+                alpha_beta, = self.sess.run([self.alpha_beta[:, i, j, :]], {self.image: image[..., None]})
+                image[:, i, j] = np.random.beta(alpha_beta[..., 0], alpha_beta[..., 1])
                 print 'sampling...', i, j, '\r',
         canvas = Image.new('L', (32*n, 32*n))
         for i in xrange(n):
             for j in xrange(n):
-                im = Image.fromarray(np.cast[np.uint8](means[i*n+j, :, :, 0] * 255))
+                im = Image.fromarray(np.cast[np.uint8](image[i*n+j, :, :] * 255))
                 canvas.paste(im, (32*i+2, 32*j+2))
         canvas.save(name)
 

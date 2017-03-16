@@ -19,25 +19,24 @@ if not os.path.exists(home + '/models/'):
     os.makedirs(home + '/models/')
 
 
-def residual_block(x, name, rate=1, n_filters=128, padding='SAME'):
+def residual_block(x, name, sz=5, n_filters=128, padding='SAME'):
     h = x
     h = slim.conv2d(h, n_filters * 2, [1, 1], activation_fn=None,
         scope='{}/1x1/1'.format(name))
-    h = slim.conv2d(h, n_filters, [3, 3], activation_fn=tf.nn.elu,
-        padding=padding, rate=rate, scope='{}/3x3/1'.format(name))
-    h = slim.conv2d(h, n_filters, [3, 3], activation_fn=tf.nn.elu,
-        padding=padding, rate=rate, scope='{}/3x3/2'.format(name))
+    h = slim.conv2d(h, n_filters, [sz, sz], activation_fn=tf.nn.elu,
+        padding=padding, scope='{}/szxsz/1'.format(name))
+    h = slim.conv2d(h, n_filters, [sz, sz], activation_fn=tf.nn.elu,
+        padding=padding, scope='{}/szxsz/2'.format(name))
     h = slim.conv2d(h, n_filters * 2, [1, 1],
         scope='{}/1x1/2'.format(name))
     return x + h
 
 def canvas_block(x, n_filters, scope):
     h = slim.conv2d(x, n_filters * 2, [1, 1], activation_fn=None, scope=scope+'first')
-    for i, rate in enumerate([1, 2, 4, 2, 1]):
-        h = residual_block(h, scope+str(i), n_filters=n_filters, rate=rate)
+    for i, sz in enumerate([5, 5, 5, 5, 5, 5, 5, 5]):
+        h = residual_block(h, scope+str(i), n_filters=n_filters, sz=sz)
     y = slim.conv2d(h, 3, [1, 1], activation_fn=None, scope=scope+'last')
-    return y + x
-
+    return y
 
 
 class Model:
@@ -45,14 +44,14 @@ class Model:
         self.sess = tf.Session()
         self.inputs = h = tf.placeholder(tf.float32, [None, 64, 64, 3])
 
-        for i in xrange(5):
-            h = canvas_block(h, n_filters=128, scope='canvas/{}/'.format(i))
-        y = h
+        y = canvas_block(h, n_filters=128, scope='canvas/')
 
-        self.preds = y[:, 16:48, 16:48, :]
+        self.logits = y[:, 16:48, 16:48, :]
+
+        self.preds = tf.nn.sigmoid(self.logits)
 
         self.outputs = tf.placeholder(tf.float32, [None, 32, 32, 3])
-        self.losses = 0.5 * tf.square(self.preds - self.outputs)
+        self.losses = tf.nn.sigmoid_cross_entropy_with_logits(labels=self.outputs, logits=self.logits)
         self.loss = tf.reduce_mean(tf.reduce_sum(self.losses, axis=[1, 2, 3]))
         self.train_op = tf.train.AdamOptimizer(1e-4).minimize(self.loss)
 
@@ -83,18 +82,18 @@ datahome = '/data/lisa/exp/ozairs/'
 train = np.load(datahome + 'images.train.npz').items()[0][1]
 valid = np.load(datahome + 'images.valid.npz').items()[0][1]
 
-mbsz = 8
+mbsz = 16
 model = Model()
 
 for e in xrange(200):
-    logging.debug("epoch: {}".format(e))
     idx = np.arange(train.shape[0])
     np.random.shuffle(idx)
     losses = []
     for i in xrange(0, train.shape[0], mbsz):
         loss, _ = model.run(train[idx[i:i+mbsz]])
         losses.append(loss)
-        logging.debug("iters: {}/{}, train loss: {}".format(i, train.shape[0], np.mean(losses)))
+        if i % 100 == 0:
+            logging.debug("epoch: {}, iters: {}/{}, train loss: {}".format(e, i, train.shape[0], np.mean(losses)))
 
     idx = np.arange(valid.shape[0])
     np.random.shuffle(idx)
@@ -102,7 +101,8 @@ for e in xrange(200):
     for i in xrange(0, valid.shape[0], mbsz):
         loss = model.run(valid[idx[i:i+mbsz]], train=False)
         losses.append(loss)
-        logging.debug("iters: {}/{}, valid loss: {}".format(i, valid.shape[0], np.mean(losses)))
+        if i % 100 == 0:
+            logging.debug("epoch: {}, iters: {}/{}, valid loss: {}".format(e, i, valid.shape[0], np.mean(losses)))
 
     preds = model.complete(train[idx[:mbsz]])
     np.save('{}/train_completions_{}.npy'.format(home, e), preds)
