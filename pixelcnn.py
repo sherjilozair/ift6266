@@ -1,7 +1,6 @@
 import numpy as np
 import tensorflow as tf
 import tensorflow.contrib.slim as slim
-from tensorflow.examples.tutorials.mnist import input_data
 from PIL import Image
 
 class nn:
@@ -62,25 +61,29 @@ class PixelCNN:
     def load_params(self, path):
         self.saver.restore(self.sess, path)
 
-    def train(self, data, mbsz=64, nb_epochs=200):
+    def train(self, train, valid, mbsz=64, nb_epochs=200):
         for e in xrange(nb_epochs):
             train_losses = []
+            idx = np.arange(len(train))
+            np.random.shuffle(idx)
             for i in xrange(1000):
-                mean = mnist.train.next_batch(mbsz)[0]
-                image = np.cast[np.float32](np.random.random(mean.shape) < mean)
+                image = train[idx[mbsz*i:mbsz*(i+1)]]
                 _, l = self.sess.run([self.train_op, self.loss], {self.image: image})
                 train_losses.append(l)
                 print 'training...', i, np.mean(train_losses), '\r',
 
             validation_losses = []
+            idx = np.arange(len(valid))
+            np.random.shuffle(idx)
+
             for j in xrange(100):
-                mean = mnist.validation.next_batch(mbsz)[0]
-                image = np.cast[np.float32](np.random.random(mean.shape) < mean)
+                image = valid[idx[mbsz*i:mbsz*(i+1)]]
                 l, = self.sess.run([self.loss], {self.image: image})
                 validation_losses.append(l)
                 print 'validating...', j, np.mean(validation_losses), '\r',
+
             path = self.save_params("models/ckpt_{}".format(e))
-            self.sample('samples/sample_{}.png'.format(e))
+            #self.sample('samples/sample_{}.png'.format(e))
             print "epoch: {}/{}, train loss: {}, validation loss: {}, model saved: {}".format(e, nb_epochs, np.mean(train_losses), np.mean(validation_losses), path)
 
 
@@ -103,5 +106,9 @@ class PixelCNN:
 
 if __name__ == '__main__':
     model = PixelCNN()
-    mnist = input_data.read_data_sets("MNIST_data/", reshape=False)
-    model.train(mnist)
+
+    datahome = '/data/lisa/exp/ozairs/'
+    train = np.load(datahome + 'images.train.npz').items()[0][1]
+    valid = np.load(datahome + 'images.valid.npz').items()[0][1]
+
+    model.train(train, valid)
