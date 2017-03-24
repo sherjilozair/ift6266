@@ -33,24 +33,27 @@ class nn:
 
         return h
 
+def residual_block(x, name, mask=None):
+    nr_filters = x.get_shape()[-1]
+    h = nn.conv2d(x, nr_filters/2, [1, 1], scope='conv/1x1/{}/1'.format(name))
+    h = nn.conv2d(h, nr_filters/, [3, 3], mask=mask, scope='conv/3x3/{}'.format(name))
+    h = nn.conv2d(h, nr_filters, [1, 1], scope='conv/1x1/{}/2'.format(name))
+    return h + x
+
 
 class PixelCNN:
     def __init__(self):
         self.image = tf.placeholder(tf.float32, [None, 28, 28, 1])
         h = nn.conv2d(self.image, 256, [7, 7], mask='a', scope='conv/7x7')
         for i in xrange(12):
-            ih = h
-            h = nn.conv2d(h, 128, [1, 1], scope='conv/1x1/%d/1' % i)
-            h = nn.conv2d(h, 128, [3, 3], mask='b', scope='conv/3x3/%d' % i)
-            h = nn.conv2d(h, 256, [1, 1], scope='conv/1x1/%d/2' % i)
-            h = ih + h
+            h = residual_block(h, str(i), mask='b')
         h = nn.conv2d(h, 32, [1, 1], scope='conv/relu/1x1/1')
         h = nn.conv2d(h, 32, [1, 1], scope='conv/relu/1x1/2')
         self.logits = nn.conv2d(h, 1, [1, 1], activation_fn=None, scope='conv/logits')
         self.means = tf.nn.sigmoid(self.logits)
         self.losses = tf.nn.sigmoid_cross_entropy_with_logits(logits=self.logits, labels=self.image)
         self.loss = tf.reduce_mean(tf.reduce_sum(self.losses, axis=[1, 2, 3]))
-        self.train_op = tf.train.AdamOptimizer().minimize(self.loss)
+        self.train_op = tf.train.AdamOptimizer(1e-5).minimize(self.loss)
         self.sess = tf.Session()
         self.sess.run(tf.global_variables_initializer())
         self.saver = tf.train.Saver()
