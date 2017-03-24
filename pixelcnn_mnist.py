@@ -40,7 +40,7 @@ class PixelCNN:
 
     def __init__(self):
         self.image = tf.placeholder(tf.float32, [None, 28, 28, 1])
-        self.labels = tf.cast(self.image, tf.int32)
+        self.labels = tf.cast(self.image, tf.int32)[..., 0]
         h = nn.conv2d(self.image, 256, [5, 5], mask='a', scope='conv/7x7/ul')
 
         for i in xrange(16):
@@ -55,7 +55,7 @@ class PixelCNN:
         self.logits = nn.conv2d(h, 256, [1, 1], activation_fn=None, scope='conv/logits')
         self.preds = tf.contrib.distributions.Categorical(self.logits).sample()
         self.losses = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=self.logits, labels=self.labels)
-        self.loss = tf.reduce_mean(tf.reduce_sum(self.losses, axis=[1, 2, 3]))
+        self.loss = tf.reduce_mean(tf.reduce_sum(self.losses, axis=[1, 2]))
         self.train_op = tf.train.AdamOptimizer().minimize(self.loss)
         self.sess = tf.Session()
         self.sess.run(tf.global_variables_initializer())
